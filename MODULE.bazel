@@ -1,0 +1,20 @@
+module(
+    name = "my_project",
+)
+
+bazel_dep(name = "pigweed")
+bazel_dep(name = "rules_cc", version = "0.0.9")
+
+local_path_override(
+    module_name = "pigweed",
+    path = "third_party/pigweed",
+)
+
+# Toolchain registration
+register_toolchains(
+    "@pigweed//pw_toolchain:cc_toolchain_cortex-m0",
+    "@pigweed//pw_toolchain:cc_toolchain_cortex-m33",
+    "@pigweed//pw_toolchain/host_clang:host_cc_toolchain_linux",
+    "@pigweed//pw_toolchain/host_clang:host_cc_toolchain_macos",
+    dev_dependency = True,
+)
