@@ -1,0 +1,165 @@
+# Copyright 2024 The Pigweed Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+load("@pigweed//pw_build:merge_flags.bzl", "flags_from_dict")
+load("@pigweed//pw_unit_test:pw_cc_test.bzl", "pw_cc_test")
+load("@zephyr//:cc.bzl", "zephyr_cc_binary", "zephyr_cc_library")
+load("@zephyr//:defs.bzl", "dts_cc_library")
+load("@configs//:kconfig_flag_values.bzl", KCONFIG_FLAGS = "KCONFIG_FLAGS")
+
+package(default_visibility = ["//visibility:public"])
+
+label_flag(
+    name = "pw_assert_backend_impl",
+    build_setting_default = "@pigweed//pw_assert_log:assert_backend",
+)
+
+# dts_library(
+#     name = "app_overlay",
+#     dts_parent = "@zephyr//boards/native/native_sim:native_sim",
+#     overlay = "app.overlay",
+# )
+
+
+
+filegroup(
+    name = "autoconf_file",
+    srcs = ["@configs//:generated/zephyr/autoconf.h"],
+)
+
+cc_library(
+    name = "autoconf",
+    srcs = [
+        "generated/zephyr/kobj-types-enum.h",
+    ],
+    includes = ["generated"],
+    defines = [
+        "CONFIG_PIGWEED_SYS_IO_INIT_PRIORITY=1",
+    ],
+    deps = [
+        "@configs//:autoconf",
+    ],
+)
+
+# Target for defining Kconfig symbols in ELF for the second linker pass to use.
+zephyr_cc_library(
+    name = "configs_elf_symbols",
+    srcs = [
+        "@configs//:configs_file",
+    ],
+)
+
+platform(
+    name = "mimxrt595_evk",
+    flags = flags_from_dict({
+        "@zephyr//:autoconf_library": ":autoconf",
+        "@zephyr//:autoconf_file": ":autoconf_file",
+    }) + KCONFIG_FLAGS,
+    parents = ["@zephyr//boards/nxp/mimxrt595_evk:mimxrt595_evk"],
+)
+
+zephyr_cc_library(
+    name = "app_main",
+    srcs = ["hello_dts.cc"]
+)
+
+zephyr_cc_binary(
+    name = "app",
+    srcs = [
+        "@zephyr//lib/cpp/abi:cpp_dtors.c",  # CONFIG_STATIC_INIT_GNU
+        "@zephyr//subsys/tracing:tracing_none.c", # NOT CONFIG_PERCEPIO_TRACERECORDER AND
+                                                  # NOT CONFIG_TRACING_CTF AND 
+                                                  # NOT CONFIG_SEGGER_SYSTEMVIEW AND 
+                                                  # NOT CONFIG_TRACING_TEST AND 
+                                                  # NOT CONFIG_TRACING_USER
+    ],
+    defines = select({
+        "@platforms//cpu:armv7e-m": [
+            "CONFIG_ARM=1",
+            "CONFIG_BUILD_OUTPUT_HEX=1",
+            "CONFIG_ARM_MPU=1",
+            "CONFIG_HW_STACK_PROTECTION=1",
+            "CONFIG_WDT_DISABLE_AT_BOOT=1",
+            "CONFIG_CONSOLE=1",
+            "CONFIG_UART_CONSOLE=1",
+            "CONFIG_SERIAL=1",
+        ],
+        "@platforms//cpu:x86_64": [
+            "CONFIG_ARCH_POSIX=1",
+        ],
+    }),
+    deps = [
+        ":app_main",
+        ":configs_elf_symbols",
+        "@pigweed//pw_assert:assert_backend_impl",
+        "@pigweed//pw_assert:check_backend_impl",
+        "@pigweed//pw_log",
+        "@pigweed//pw_log:backend_impl",
+        "@pigweed//pw_sys_io",
+        "@zephyr",
+        "@zephyr//:autoconf_library",
+        "@zephyr//:dts_cc_library",
+        "@zephyr//arch/common",
+        "@zephyr//lib/heap",
+        "@zephyr//lib/os",
+        "@zephyr//drivers/pinctrl:sam",  # CONFIG_PINCTRL_SAM
+    ] + select({
+        "//conditions:default": [],
+        "@kconfig//:CONFIG_GEN_ISR_TABLES=true": [
+            "@zephyr//arch/common:isr_tables",
+        ],
+    }) + select({
+        "//conditions:default": [],
+        "@kconfig//:CONFIG_CLOCK_CONTROL=true": [
+            "@zephyr//drivers/clock_control",
+        ],
+    }) + select({
+        "//conditions:default": [],
+        "@kconfig//:CONFIG_UART_CONSOLE=true": [
+            "@zephyr//drivers/console:uart_console",
+        ],
+    }) + select({
+        "//conditions:default": [],
+        "@kconfig//:CONFIG_GPIO_SAM=true": [
+            "@zephyr//drivers/gpio:sam",
+        ],
+    }) + select({
+        "//conditions:default": [],
+        "@kconfig//:CONFIG_WATCHDOG=true": [
+            "@zephyr//drivers/watchdog",
+        ],
+    }) + select({
+        "//conditions:default": [],
+        "@kconfig//:CONFIG_PICOLIBC=true": [
+            "@zephyr//lib/libc/picolibc",
+        ],
+    }) + select({
+        "@platforms//cpu:armv7e-m": [
+            "@zephyr//arch/arm/core/cortex_m",
+            "@zephyr//drivers/timer:cortex_m_systick",
+            # "@pigweed//pw_toolchain/arm_gcc:arm_none_eabi_gcc_support",
+            # "@pigweed//targets/stm32f429i_disc1:basic_linker_script",
+            # "@pigweed//targets/stm32f429i_disc1:pre_init",
+        ],
+    }) + select({
+        "@zephyr//boards/nxp/mimxrt595_evk:mimxrt595_evk": [
+            "@zephyr//include:posix",
+            "@zephyr//drivers/serial:sam_uart", # Adjusted from atmel_sam_uart to sam_uart
+        ],
+        "@zephyr//boards/native:board_name_native_sim": [
+            ":app_host_dts",
+            "@zephyr//include:posix",
+        ],
+    }),
+)

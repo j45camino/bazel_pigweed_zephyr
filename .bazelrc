@@ -1,2 +1,5 @@
 # Enable C++20 support, which is required by some Pigweed modules.
 build --cxxopt=-std=c++20
+
+# Configuration for building for the MIMXRT595-EVK target.
+build:mimxrt595_evk --platforms=//third_party/pigweed/targets/mimxrt595_evk:platform

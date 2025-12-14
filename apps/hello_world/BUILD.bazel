@@ -1,11 +1,31 @@
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@pigweed//pw_build:merge_flags.bzl", "flags_from_dict")
+load("@pigweed//pw_unit_test:pw_cc_test.bzl", "pw_cc_test")
+load("@zephyr-bazel//:cc.bzl", "zephyr_cc_binary", "zephyr_cc_library")
+load("@zephyr-bazel//:defs.bzl", "dts_cc_library")
+# load("@configs//:kconfig_flag_values.bzl", KCONFIG_FLAGS = "KCONFIG_FLAGS")
 
 package(default_visibility = ["//visibility:public"])
 
-cc_binary(
-    name = "hello_world",
+dts_cc_library(
+    name = "app_mimxrt595_dts",
+    dts_lib = "@zephyr//boards/nxp/mimxrt595_evk:mimxrt595_evk",
+    target_compatible_with = ["@zephyr//boards/nxp/mimxrt595_evk:mimxrt595_evk"],
+)
+
+zephyr_cc_library(
+    name = "app_main",
     srcs = ["hello_world.cc"],
     deps = [
         "@pigweed//pw_log",
+    ],
+)
+
+zephyr_cc_binary(
+    name = "hello_world",
+    target_compatible_with = ["//third_party/pigweed/targets/mimxrt595_evk:platform"],
+    deps = [
+        ":app_main",
+        "@zephyr//:zephyr",
+        ":app_mimxrt595_dts",
     ],
 )

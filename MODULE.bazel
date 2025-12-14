@@ -2,38 +2,114 @@ module(
     name = "my_project",
 )
 
-bazel_dep(name = "pigweed")
-bazel_dep(name = "rules_cc", version = "0.0.9")
-bazel_dep(name = "rules_python", version = "0.31.0")
+bazel_dep(name = "rules_cc", version = "0.2.4")
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
+bazel_dep(name = "rules_python", version = "1.1.0")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_platform", version = "0.1.0")
 bazel_dep(name = "zephyr-bazel")
+bazel_dep(name = "protobuf", version = "29.0")
+
 git_override(
     module_name = "zephyr-bazel",
     remote = "https://pigweed.googlesource.com/zephyr/zephyr-bazel",
     branch = "main",
 )
 
+bazel_dep(name = "pigweed")
 local_path_override(
     module_name = "pigweed",
     path = "third_party/pigweed",
 )
 
-zephyr_patch_file = use_extension("@zephyr-bazel//:setup.bzl", "zephyr_patch_file")
-use_repo(zephyr_patch_file, "zephyr")
+zephyr_setup = use_extension("@zephyr-bazel//:setup.bzl", "zephyr_patch_file")
 
-pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
-# Load the Zephyr pip requirements
-pip.parse(
-    hub_name = "pip",
-    python_version = "3.11",
-    requirements_lock = "@zephyr//:scripts/requirements-base.txt",
+# Get access to the build overlay patch file.
+use_repo(zephyr_setup, "zephyr-patch")
+
+git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+# Declare the intended canonical definition of @zephyr.
+git_repository(
+    name = "zephyr",
+    remote = "https://pigweed.googlesource.com/third_party/github/zephyrproject-rtos/zephyr",
+    commit = "fb4bb5d7688f5b232023ea07308edfe734f41b7e",
+    patches = [
+        "@zephyr-patch//:patch.diff",
+    ],
 )
-use_repo(pip, "pip")
-inject_repo(zephyr_patch_file, "pip")
 
+# Tell @zephyr-bazel to use the local instance of @zephyr as the canonical
+# definition of @zephyr.
+override_repo(zephyr_setup, "zephyr")
+
+# Make @zephyr_bazel_pip_deps visible from @zephyr since @zephyr is declared
+# in this MODULE.bazel, which otherwise can't see @zephyr-bazel's declared
+# pip deps.
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "zephyr_bazel_pip_deps",
+    python_version = "3.11",
+    requirements_lock = "@zephyr-bazel//scripts:requirements-lock.txt",
+)
+use_repo(pip, "zephyr_bazel_pip_deps")
+
+create_version_h = use_repo_rule(
+    "@zephyr-bazel//:setup.bzl",
+    "version_header",
+)
+
+create_version_h(
+    name = "zephyr_version",
+    version_file = "@zephyr//:VERSION",
+    version_template = "@zephyr//:version.h.in",
+)
+
+new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+
+new_git_repository(
+    name = "hal_atmel",
+    remote = "https://github.com/zephyrproject-rtos/hal_atmel.git",
+    commit = "56d60ebc909ad065bf6554cee73487969857614b",
+    build_file = "@zephyr-bazel//modules:hal_atmel.BUILD"
+)
+
+new_git_repository(
+    name = "cmsis",
+    remote = "https://github.com/zephyrproject-rtos/cmsis.git",
+    commit = "4b96cbb174678dcd3ca86e11e1f24bc5f8726da0",
+    build_file = "@zephyr-bazel//modules:cmsis.BUILD",
+)
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    configure_coverage_tool = True,
+    is_default = True,
+    python_version = "3.11",
+)
+
+kconfig = use_extension("@zephyr-bazel//:kconfig.bzl", "kconfig")
+kconfig.tree(
+    zephyr_root = "@zephyr",
+    board_name = "mimxrt595_evk",
+)
+kconfig.project(
+    name = "configs",
+    conf_file = "prj.conf",
+    dts_file = "@zephyr//:boards/nxp/mimxrt595_evk/mimxrt595_evk.dts",
+    dts_file_include_paths = [
+        "@zephyr//:dts/arm",
+        "@zephyr//:boards/nxp/mimxrt595_evk",
+        "@hal_atmel//:include",
+    ],
+)
+use_repo(kconfig, "kconfig")
+use_repo(kconfig, "configs")
 
 # Toolchain registration
 register_toolchains(
     "@pigweed//pw_toolchain:cc_toolchain_cortex-m0",
+    "@pigweed//pw_toolchain/zephyr/arm:toolchain_cortex-m7",
     "@pigweed//pw_toolchain:cc_toolchain_cortex-m33",
     "@pigweed//pw_toolchain/host_clang:host_cc_toolchain_linux",
     "@pigweed//pw_toolchain/host_clang:host_cc_toolchain_macos",
