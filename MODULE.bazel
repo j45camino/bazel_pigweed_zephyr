@@ -4,11 +4,32 @@ module(
 
 bazel_dep(name = "pigweed")
 bazel_dep(name = "rules_cc", version = "0.0.9")
+bazel_dep(name = "rules_python", version = "0.31.0")
+bazel_dep(name = "zephyr-bazel")
+git_override(
+    module_name = "zephyr-bazel",
+    remote = "https://pigweed.googlesource.com/zephyr/zephyr-bazel",
+    branch = "main",
+)
 
 local_path_override(
     module_name = "pigweed",
     path = "third_party/pigweed",
 )
+
+zephyr_patch_file = use_extension("@zephyr-bazel//:setup.bzl", "zephyr_patch_file")
+use_repo(zephyr_patch_file, "zephyr")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+# Load the Zephyr pip requirements
+pip.parse(
+    hub_name = "pip",
+    python_version = "3.11",
+    requirements_lock = "@zephyr//:scripts/requirements-base.txt",
+)
+use_repo(pip, "pip")
+inject_repo(zephyr_patch_file, "pip")
+
 
 # Toolchain registration
 register_toolchains(

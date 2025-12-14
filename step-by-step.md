@@ -48,3 +48,19 @@ This document records the major steps taken to set up the Bazel project with Pig
 
 **Note on MCUXpresso SDK:** The NXP MCUXpresso SDK is required for the MIMXRT595-EVK target. The `pw package` system, configured in our project-level `pigweed.json`, automatically downloads and installs the SDK into the `environment/packages/mcuxpresso` directory. This is the recommended approach over manually downloading and placing it in `third_party/mcuxpresso/sdk`.
 
+## 7. Add Bazel Skylib and Rules Python
+
+- Added `bazel_skylib` as a dependency in `MODULE.bazel` to provide common utilities for Bazel build and test rules.
+- Added `rules_python` as a dependency in `MODULE.bazel` to provide rules for building Python code.
+
+## 8. Integrate Zephyr-Bazel Add-on
+
+- Added the Zephyr-Bazel add-on to `MODULE.bazel` to allow building Zephyr applications with Bazel.
+- This involved:
+  - Adding a `bazel_dep` and `git_override` for `zephyr-bazel`.
+  - Using the `zephyr_patch_file` module extension to patch the Zephyr source code with Bazel build files.
+  - Using the `pip` module extension to install Zephyr's Python dependencies.
+  - Adding a `build:mimxrt595_evk` config to `.bazelrc` to set the target platform.
+  - Creating a `build_overrides` directory.
+- The `hello_world` application was successfully built for the `mimxrt595_evk` target.
+
