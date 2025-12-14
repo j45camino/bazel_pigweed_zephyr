@@ -64,3 +64,15 @@ This document records the major steps taken to set up the Bazel project with Pig
   - Creating a `build_overrides` directory.
 - The `hello_world` application was successfully built for the `mimxrt595_evk` target.
 
+## 9. Encountering Build Issues with `mimxrt595_evk` Target
+
+- Attempted to build the `hello_world` application for the `mimxrt595_evk` target using:
+  `bazelisk build --config=mimxrt595_evk //apps/hello_world`
+- Encountered a build error:
+  ```
+  ERROR: /home/wyang/.cache/bazel/_bazel_wyang/57236b8ec88d559d6ca77dc81fdef51a/external/pigweed+/pw_build/BUILD.bazel: no such target '@@pigweed+//pw_build:kythe': target 'kythe' not declared in package 'pw_build' defined by /home/wyang/.cache/bazel/_bazel_wyang/57236b8ec88d559d6ca77dc81fdef51a/external/pigweed+/pw_build/BUILD.bazel
+  ERROR: Analysis of target '//apps/hello_world:hello_world' failed; build aborted: Analysis failed
+  ```
+- This error is puzzling because `kythe` is not directly referenced in `third_party/pigweed/pw_build/BUILD.bazel`. The issue likely lies in a deeper transitive dependency or an interaction with `zephyr-bazel` or the overall Pigweed Bazel setup.
+
+
