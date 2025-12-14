@@ -1,2 +1,5 @@
 # Ignore Bazel build artifacts
 bazel-*
+
+# Ignore Pigweed environment
+/environment/
